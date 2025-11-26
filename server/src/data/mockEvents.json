@@ -1,0 +1,19 @@
+[
+    {
+        "delay": 3000,
+        "type": "goal",
+        "team": "A",
+        "message": "Team A scored!"
+    },
+    {
+        "delay": 5000,
+        "type": "foul",
+        "message": "Foul from mid-field"
+    },
+    {
+        "delay": 4000,
+        "type": "goal",
+        "team": "B",
+        "message": "Team B equalizes!"
+    }
+]

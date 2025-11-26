@@ -1,0 +1,10 @@
+{
+  "watch": [
+    "src"
+  ],
+  "ext": "ts,json",
+  "ignore": [
+    "src/tests"
+  ],
+  "exec": "ts-node -r tsconfig-paths/register ./src/app.ts"
+}
