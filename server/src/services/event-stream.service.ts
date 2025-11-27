@@ -1,5 +1,5 @@
 import fs from "fs";
-import { matchService } from "./match.service";
+import  matchService  from "./match.service";
 
 class MockEventService {
   startMock(id: string) {

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "1",
+    "teamA": "Barcelona",
+    "teamB": "Real Madrid",
+    "started": true,
+    "scoreA": 1,
+    "scoreB": 0,
+    "events": [
+      {
+        "type": "goal",
+        "team": "A",
+        "player": "Lewandowski",
+        "minute": 23
+      }
+    ]
+  },
+  {
+    "id": "2",
+    "teamA": "Barcelona",
+    "teamB": "Real Madrid",
+    "started": false,
+    "scoreA": 0,
+    "scoreB": 0,
+    "events": []
+  },
+  {
+    "id": "3",
+    "teamA": "Barcelona",
+    "teamB": "Real Madrid",
+    "started": false,
+    "scoreA": 0,
+    "scoreB": 0,
+    "events": []
+  },
+  {
+    "id": "4",
+    "teamA": "Barcelona",
+    "teamB": "Real Madrid",
+    "started": false,
+    "scoreA": 0,
+    "scoreB": 0,
+    "events": []
+  }
+]

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { matchService } from "@/services/match.service";
+import matchService from "@/services/match.service";
 
 export const createMatch = (req: Request, res: Response) => {
   const { teamA, teamB } = req.body;
@@ -8,45 +8,27 @@ export const createMatch = (req: Request, res: Response) => {
 };
 
 export const startMatch = (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({ error: "Match id is required" });
-    }
+  const { id } = req.params;
+  const match = matchService.startMatch(id);
 
-    const match = matchService.startMatch(id);
-    if (!match) {
-      return res.status(404).json({ error: "Match not found" });
-    }
-
-    res.json(match);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  if (!match) {
+    res.status(404).json({ error: "Match not found" });
+    return;
   }
+
+  res.json(match);
 };
 
-// Admin pushes manual events
 export const pushEvent = (req: Request, res: Response) => {
-  try {
-    const { type, team, message } = req.body;
-    const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({ error: "Match id is required" });
-    }
+  const { id } = req.params;
+  const event = req.body;
 
-    const event = matchService.addEvent(id, {
-      type,
-      team,
-      message,
-      timestamp: Date.now(),
-    });
+  const match = matchService.addEvent(id, event);
 
-    if (!event) {
-      return res.status(404).json({ error: "Match not found" });
-    }
-
-    res.json(event);
-  } catch (error: any) {
-    res.status(400).json({ error: error.message });
+  if (!match) {
+    res.status(404).json({ error: "Match not found" });
+    return;
   }
+
+  res.json(match);
 };

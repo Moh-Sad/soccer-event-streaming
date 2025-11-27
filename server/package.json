@@ -1,12 +1,11 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "type": "commonjs",
   "main": "dist/app.js",
   "scripts": {
-    "start": "node -r tsconfig-paths/register dist/app.js",
-    "dev": "nodemon src/app.ts",
-    "build": "rm -rf dist && tsc"
+    "dev": "nodemon",
+    "build": "tsc",
+    "start": "node -r tsconfig-paths/register dist/app.js"
   },
   "dependencies": {
     "express": "^5.1.0"
