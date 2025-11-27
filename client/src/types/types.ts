@@ -17,10 +17,10 @@ export interface Match {
   teamA: string;
   teamB: string;
   started: boolean;
-  events: MatchEvent[];
+  events?: MatchEvent[]; 
   isLive?: boolean;
   home?: string;
-  away?: string;
+  away?: string; 
   time?: string;
   score?: string;
 }

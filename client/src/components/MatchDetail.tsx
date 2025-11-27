@@ -10,7 +10,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Activity, Volleyball, User, Users } from "lucide-react";
+import {
+  Clock,
+  Activity,
+  Volleyball,
+  User,
+  Users,
+  AlertCircle,
+} from "lucide-react";
 
 interface Props {
   match: Match;
@@ -18,86 +25,140 @@ interface Props {
 }
 
 const MatchDetail: React.FC<Props> = ({ match, reload }) => {
-  const [events, setEvents] = useState<MatchEvent[]>(match.events || []);
-  const [currentMatch, setCurrentMatch] = useState<Match>(match);
+  const [events, setEvents] = useState<MatchEvent[]>(match?.events || []);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
+  // Safe match data with defaults
+  const safeMatch = {
+    id: match?.id || 0,
+    teamA: match?.teamA || "Team A",
+    teamB: match?.teamB || "Team B",
+    started: match?.started || false,
+    events: match?.events || [],
+  };
   useEffect(() => {
-    setCurrentMatch(match);
-    setEvents(match.events || []);
-  }, [match]);
+    console.log(
+      "MatchDetail: Setting up SSE connection for match",
+      safeMatch.id
+    );
 
-  useEffect(() => {
-    const connection = subscribeToMatch(match.id, (event) => {
-      setEvents((prev) => {
-        // Create unique key for each event to avoid duplicates
-        const eventKey = `${event.minute}-${event.type}-${
-          event.player
-        }-${Date.now()}`;
-        const newEvent = { ...event, _key: eventKey };
-        return [newEvent, ...prev];
+    if (!safeMatch.id) {
+      console.error("No valid match ID provided");
+      return;
+    }
+
+    let connection: EventSource | null = null;
+
+    try {
+      connection = subscribeToMatch(safeMatch.id, (event) => {
+        console.log("MatchDetail: Received event", event);
+        setEvents((prev) => {
+          // Create unique key for each event to avoid duplicates
+          const eventKey = `${event.minute}-${event.type}-${
+            event.player || "unknown"
+          }-${Date.now()}`;
+          const newEvent = { ...event, _key: eventKey };
+          return [newEvent, ...prev];
+        });
+
+        // Reload parent data to stay in sync
+        if (reload) {
+          setTimeout(() => reload(), 100);
+        }
       });
 
-      // Reload parent data to stay in sync
-      if (reload) {
-        setTimeout(() => reload(), 100);
-      }
-    });
+      // Handle connection errors
+      if (connection) {
+        connection.onerror = (error) => {
+          console.error("SSE connection error:", error);
+          setConnectionError("Failed to connect to live updates");
+        };
 
-    return () => connection.close();
-  }, [match.id, reload]);
+        connection.onopen = () => {
+          console.log("SSE connection established");
+          setConnectionError(null);
+        };
+      }
+    } catch (error) {
+      console.error("Failed to set up SSE connection:", error);
+      setTimeout(() => {
+        setConnectionError("Failed to set up live updates connection");
+      }, 0);
+    }
+
+    return () => {
+      console.log("MatchDetail: Cleaning up SSE connection");
+      if (connection) {
+        connection.close();
+      }
+    };
+  }, [safeMatch.id, reload]); // Remove match from dependencies
 
   // Calculate score from events
   const calculateScore = (): string => {
-    const goalsA = events.filter(
-      (event) => event.type === "goal" && event.team === "A"
-    ).length;
-    const goalsB = events.filter(
-      (event) => event.type === "goal" && event.team === "B"
-    ).length;
-    return `${goalsA}-${goalsB}`;
+    try {
+      const goalsA = events.filter(
+        (event) => event.type === "goal" && event.team === "A"
+      ).length;
+      const goalsB = events.filter(
+        (event) => event.type === "goal" && event.team === "B"
+      ).length;
+      return `${goalsA}-${goalsB}`;
+    } catch (error) {
+      console.error("Error calculating score:", error);
+      return "0-0";
+    }
   };
 
   // Get current match time (latest event minute or 0)
   const getCurrentTime = (): string => {
-    if (events.length === 0) return "0'";
-    const latestMinute = Math.max(...events.map((event) => event.minute));
-    return `${Math.min(latestMinute + 1, 90)}'`;
+    try {
+      if (events.length === 0) return "0'";
+      const latestMinute = Math.max(
+        ...events.map((event) => event.minute || 0)
+      );
+      return `${Math.min(latestMinute + 1, 90)}'`;
+    } catch (error) {
+      console.error("Error calculating current time:", error);
+      return "0'";
+    }
   };
 
   // Generate event message based on event type
   const generateEventMessage = (event: MatchEvent): string => {
-    const teamName =
-      event.team === "A" ? currentMatch.teamA : currentMatch.teamB;
+    try {
+      const teamName = event.team === "A" ? safeMatch.teamA : safeMatch.teamB;
 
-    switch (event.type) {
-      case "goal":
-        return `⚽ GOAL! ${
-          event.player || "Unknown player"
-        } scores for ${teamName}`;
+      switch (event.type) {
+        case "goal":
+          return `⚽ GOAL! ${
+            event.player || "Unknown player"
+          } scores for ${teamName}`;
 
-      case "foul":
-        return `🦶 Foul by ${event.player || "Unknown player"} (${teamName})`;
+        case "foul":
+          return `🦶 Foul by ${event.player || "Unknown player"} (${teamName})`;
 
-      case "card":
-        { const cardType = event.cardType === "red" ? "RED CARD" : "YELLOW CARD";
-        const cardEmoji = event.cardType === "red" ? "🟥" : "🟨";
-        return `${cardEmoji} ${cardType}! ${
-          event.player || "Unknown player"
-        } (${teamName})`; }
+        case "card": {
+          const cardType =
+            event.cardType === "red" ? "RED CARD" : "YELLOW CARD";
+          const cardEmoji = event.cardType === "red" ? "🟥" : "🟨";
+          return `${cardEmoji} ${cardType}! ${
+            event.player || "Unknown player"
+          } (${teamName})`;
+        }
 
-      case "substitution":
-        return `🔄 Substitution: ${event.playerOut || "Player out"} → ${
-          event.playerIn || "Player in"
-        } (${teamName})`;
+        case "substitution":
+          return `🔄 Substitution: ${event.playerOut || "Player out"} → ${
+            event.playerIn || "Player in"
+          } (${teamName})`;
 
-      default:
-        return `Event: ${event.type} for ${teamName}`;
+        default:
+          return `Event: ${event.type} for ${teamName}`;
+      }
+    } catch (error) {
+      console.error("Error generating event message:", error);
+      return "Event processing error";
     }
-  };
-
-  // Format timestamp
-  const formatTimestamp = (minute: number): string => {
-    return `${minute}'`;
   };
 
   const getEventColor = (event: MatchEvent) => {
@@ -128,44 +189,67 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
     }
   };
 
-  // Use teamA and teamB as home and away
-  const homeTeam = currentMatch.teamA;
-  const awayTeam = currentMatch.teamB;
   const currentScore = calculateScore();
   const currentTime = getCurrentTime();
 
+  // If no valid match, show error
+  if (!match || !safeMatch.id) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center">
+          <AlertCircle className="h-12 w-12 mx-auto text-red-500 mb-4" />
+          <h3 className="text-lg font-semibold text-slate-800">
+            No Match Selected
+          </h3>
+          <p className="text-slate-600">
+            Please select a valid match to view details.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {connectionError && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-yellow-800">
+              <AlertCircle className="h-4 w-4" />
+              <span>{connectionError}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="bg-linear-to-r from-slate-800 to-slate-700 text-white">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl flex items-center justify-center gap-3">
             <Activity className="h-6 w-6 text-red-400" />
-            {currentMatch.started ? "Live Match" : "Match Preview"}
+            {safeMatch.started ? "Live Match" : "Match Preview"}
           </CardTitle>
           <CardDescription className="text-slate-300">
-            {currentMatch.started
-              ? "Real-time updates"
-              : "Match not started yet"}
+            {safeMatch.started ? "Real-time updates" : "Match not started yet"}
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center">
           <div className="flex items-center justify-center gap-6 mb-4">
             <div className="text-center">
-              <div className="text-xl font-bold">{homeTeam}</div>
+              <div className="text-xl font-bold">{safeMatch.teamA}</div>
               <div className="text-sm text-slate-300">Home</div>
             </div>
             <div className="text-3xl font-bold text-green-400 mx-4">
               {currentScore}
             </div>
             <div className="text-center">
-              <div className="text-xl font-bold">{awayTeam}</div>
+              <div className="text-xl font-bold">{safeMatch.teamB}</div>
               <div className="text-sm text-slate-300">Away</div>
             </div>
           </div>
           <div className="flex items-center justify-center gap-2 text-slate-300">
             <Clock className="h-4 w-4" />
             <span>{currentTime}</span>
-            {!currentMatch.started && (
+            {!safeMatch.started && (
               <Badge
                 variant="secondary"
                 className="ml-2 bg-yellow-500 text-white"
@@ -184,8 +268,8 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
             Match Events
           </CardTitle>
           <CardDescription>
-            {currentMatch.started ? "Real-time events stream" : "Match events"}{" "}
-            ({events.length} events)
+            {safeMatch.started ? "Real-time events stream" : "Match events"} (
+            {events.length} events)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -193,12 +277,12 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
             <div className="text-center py-8 text-slate-500">
               <Activity className="h-12 w-12 mx-auto mb-4 text-slate-300" />
               <p>
-                {currentMatch.started
+                {safeMatch.started
                   ? "Waiting for match events..."
                   : "No events yet. Match has not started."}
               </p>
               <p className="text-sm">
-                {currentMatch.started
+                {safeMatch.started
                   ? "Events will appear here in real-time"
                   : "Events will appear once the match starts"}
               </p>
@@ -227,9 +311,7 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <Clock className="h-3 w-3 text-slate-400" />
-                      <p className="text-xs text-slate-500">
-                        {formatTimestamp(event.minute)}
-                      </p>
+                      <p className="text-xs text-slate-500">{event.minute}'</p>
                       <Badge variant="outline" className="text-xs">
                         Team {event.team}
                       </Badge>
