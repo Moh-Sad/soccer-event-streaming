@@ -29,7 +29,7 @@ const MatchesList: React.FC<Props> = ({ matches, onOpen, reload }) => {
       match.events?.filter(
         (event) => event.type === "goal" && event.team === "B"
       ).length || 0;
-    const score = `${goalsA}-${goalsB}`;
+    const score = `${goalsA}${" "}-${" "}${goalsB}`;
 
     // Calculate current minute
     let time = "Not Started";
@@ -153,8 +153,8 @@ const MatchesList: React.FC<Props> = ({ matches, onOpen, reload }) => {
                   </div>
                   <Button
                     onClick={() => onOpen(match)}
-                    className="w-full flex items-center gap-2"
-                    variant="outline"
+                    className="w-full flex items-center gap-2 cursor-pointer hover:bg-slate-300 border bg-slate-200"
+                    variant="none"
                   >
                     <Eye className="h-4 w-4" />
                     View Match

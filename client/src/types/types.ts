@@ -17,10 +17,13 @@ export interface Match {
   teamA: string;
   teamB: string;
   started: boolean;
-  events?: MatchEvent[]; 
+  events?: MatchEvent[];
   isLive?: boolean;
   home?: string;
   away?: string; 
   time?: string;
   score?: string;
 }
+
+// Helper type for validating events
+export type ValidMatchEvent = Required<Pick<MatchEvent, 'type' | 'minute' | 'team'>> & MatchEvent;

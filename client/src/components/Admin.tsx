@@ -62,7 +62,8 @@ const AdminPage = ({ reload }: { reload: () => void }) => {
   const create = async () => {
     if (!form.teamA.trim() || !form.teamB.trim()) return;
     try {
-      await createMatch({ home: form.teamA, away: form.teamB });
+      // Fix: Send teamA and teamB instead of home and away
+      await createMatch({ teamA: form.teamA, teamB: form.teamB });
       setForm({ teamA: "", teamB: "" }); // Reset form
       await loadMatches();
       reload();

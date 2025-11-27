@@ -25,7 +25,7 @@ interface Props {
 }
 
 const MatchDetail: React.FC<Props> = ({ match, reload }) => {
-  const [events, setEvents] = useState<MatchEvent[]>(match?.events || []);
+  const [events, setEvents] = useState<MatchEvent[]>([]);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Safe match data with defaults
@@ -36,6 +36,20 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
     started: match?.started || false,
     events: match?.events || [],
   };
+
+  // Derive initial events from match prop using useMemo
+  React.useEffect(() => {
+    setEvents(
+      (safeMatch.events || []).filter(
+        (event) =>
+          event &&
+          typeof event.type === "string" &&
+          typeof event.minute === "number"
+      )
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match]);
+
   useEffect(() => {
     console.log(
       "MatchDetail: Setting up SSE connection for match",
@@ -52,6 +66,17 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
     try {
       connection = subscribeToMatch(safeMatch.id, (event) => {
         console.log("MatchDetail: Received event", event);
+
+        // Validate the incoming event before adding it
+        if (
+          !event ||
+          typeof event.type !== "string" ||
+          typeof event.minute !== "number"
+        ) {
+          console.error("Invalid event received:", event);
+          return;
+        }
+
         setEvents((prev) => {
           // Create unique key for each event to avoid duplicates
           const eventKey = `${event.minute}-${event.type}-${
@@ -97,10 +122,14 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
   // Calculate score from events
   const calculateScore = (): string => {
     try {
-      const goalsA = events.filter(
+      const validEvents = events.filter(
+        (event) => event && event.type && event.team
+      );
+
+      const goalsA = validEvents.filter(
         (event) => event.type === "goal" && event.team === "A"
       ).length;
-      const goalsB = events.filter(
+      const goalsB = validEvents.filter(
         (event) => event.type === "goal" && event.team === "B"
       ).length;
       return `${goalsA}-${goalsB}`;
@@ -113,9 +142,13 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
   // Get current match time (latest event minute or 0)
   const getCurrentTime = (): string => {
     try {
-      if (events.length === 0) return "0'";
+      const validEvents = events.filter(
+        (event) => event && typeof event.minute === "number"
+      );
+
+      if (validEvents.length === 0) return "0'";
       const latestMinute = Math.max(
-        ...events.map((event) => event.minute || 0)
+        ...validEvents.map((event) => event.minute || 0)
       );
       return `${Math.min(latestMinute + 1, 90)}'`;
     } catch (error) {
@@ -127,6 +160,11 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
   // Generate event message based on event type
   const generateEventMessage = (event: MatchEvent): string => {
     try {
+      // Validate event properties
+      if (!event || !event.type) {
+        return "Invalid event";
+      }
+
       const teamName = event.team === "A" ? safeMatch.teamA : safeMatch.teamB;
 
       switch (event.type) {
@@ -138,14 +176,13 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
         case "foul":
           return `🦶 Foul by ${event.player || "Unknown player"} (${teamName})`;
 
-        case "card": {
-          const cardType =
+        case "card":
+          { const cardType =
             event.cardType === "red" ? "RED CARD" : "YELLOW CARD";
           const cardEmoji = event.cardType === "red" ? "🟥" : "🟨";
           return `${cardEmoji} ${cardType}! ${
             event.player || "Unknown player"
-          } (${teamName})`;
-        }
+          } (${teamName})`; }
 
         case "substitution":
           return `🔄 Substitution: ${event.playerOut || "Player out"} → ${
@@ -162,6 +199,10 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
   };
 
   const getEventColor = (event: MatchEvent) => {
+    if (!event || !event.type) {
+      return "bg-slate-100 text-slate-800 border-slate-200";
+    }
+
     if (event.type === "goal") {
       return "bg-green-100 text-green-800 border-green-200";
     } else if (event.type === "foul") {
@@ -177,6 +218,10 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
   };
 
   const getEventIcon = (event: MatchEvent) => {
+    if (!event || !event.type) {
+      return <Activity className="h-4 w-4" />;
+    }
+
     switch (event.type) {
       case "goal":
         return <Volleyball className="h-4 w-4" />;
@@ -188,6 +233,11 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
         return <Activity className="h-4 w-4" />;
     }
   };
+
+  // Filter valid events for rendering
+  const validEvents = events.filter(
+    (event) => event && event.type && typeof event.type === "string"
+  );
 
   const currentScore = calculateScore();
   const currentTime = getCurrentTime();
@@ -269,11 +319,11 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
           </CardTitle>
           <CardDescription>
             {safeMatch.started ? "Real-time events stream" : "Match events"} (
-            {events.length} events)
+            {validEvents.length} events)
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {events.length === 0 ? (
+          {validEvents.length === 0 ? (
             <div className="text-center py-8 text-slate-500">
               <Activity className="h-12 w-12 mx-auto mb-4 text-slate-300" />
               <p>
@@ -289,7 +339,7 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
             </div>
           ) : (
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {events.map((event, index) => (
+              {validEvents.map((event, index) => (
                 <div
                   key={
                     event._key ||
@@ -301,7 +351,8 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
                     <Badge variant="secondary" className={getEventColor(event)}>
                       <div className="flex items-center gap-1">
                         {getEventIcon(event)}
-                        {event.type.toUpperCase()}
+                        {/* Safe type access with fallback */}
+                        {(event.type || "unknown").toUpperCase()}
                       </div>
                     </Badge>
                   </div>
@@ -311,9 +362,11 @@ const MatchDetail: React.FC<Props> = ({ match, reload }) => {
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <Clock className="h-3 w-3 text-slate-400" />
-                      <p className="text-xs text-slate-500">{event.minute}'</p>
+                      <p className="text-xs text-slate-500">
+                        {event.minute || 0}'
+                      </p>
                       <Badge variant="outline" className="text-xs">
-                        Team {event.team}
+                        Team {event.team || "Unknown"}
                       </Badge>
                     </div>
                   </div>

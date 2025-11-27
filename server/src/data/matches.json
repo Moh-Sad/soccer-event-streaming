@@ -4,7 +4,7 @@
     "teamA": "Barcelona",
     "teamB": "Real Madrid",
     "started": true,
-    "scoreA": 1,
+    "scoreA": 3,
     "scoreB": 0,
     "events": [
       {
@@ -12,6 +12,18 @@
         "team": "A",
         "player": "Lewandowski",
         "minute": 23
+      },
+      {
+        "type": "goal",
+        "minute": 0,
+        "team": "A",
+        "player": "cr7"
+      },
+      {
+        "type": "goal",
+        "minute": 0,
+        "team": "A",
+        "player": "cfgdf"
       }
     ]
   },
@@ -45,6 +57,46 @@
   {
     "id": "5",
     "started": true,
+    "scoreA": 0,
+    "scoreB": 0,
+    "events": []
+  },
+  {
+    "id": "6",
+    "started": true,
+    "scoreA": 2,
+    "scoreB": 0,
+    "events": [
+      {
+        "type": "goal",
+        "minute": 1,
+        "team": "A"
+      },
+      {
+        "type": "goal",
+        "minute": 0,
+        "team": "A",
+        "player": "cr7"
+      },
+      {
+        "type": "foul",
+        "minute": 0,
+        "team": "A"
+      }
+    ]
+  },
+  {
+    "id": "7",
+    "started": false,
+    "scoreA": 0,
+    "scoreB": 0,
+    "events": []
+  },
+  {
+    "id": "8",
+    "teamA": "kj",
+    "teamB": "m",
+    "started": false,
     "scoreA": 0,
     "scoreB": 0,
     "events": []
