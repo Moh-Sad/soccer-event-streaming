@@ -1,5 +1,6 @@
+// components/Admin.tsx
 import { createMatch, pushEvent, startMatch, getMatches } from "@/api/api";
-import { Match } from "@/types/types";
+import { Match, MatchEvent } from "@/types/types";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,153 +18,274 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Send, Play, Settings } from "lucide-react";
+import { Play, Settings } from "lucide-react";
 
 const AdminPage = ({ reload }: { reload: () => void }) => {
-  const [form, setForm] = useState({
-    home: "",
-    away: "",
-    score: "0-0",
-    time: "00:00",
-    isLive: false,
-  });
-
+  const [form, setForm] = useState({ teamA: "", teamB: "" });
   const [eventForm, setEventForm] = useState({
     id: 1,
-    message: "",
-    type: "goal",
+    minute: 0,
+    type: "goal" as "goal" | "foul" | "card" | "substitution",
+    player: "",
+    team: "A" as "A" | "B",
+    cardType: "yellow" as "yellow" | "red",
+    playerIn: "",
+    playerOut: "",
   });
-
   const [matches, setMatches] = useState<Match[]>([]);
 
   const loadMatches = async () => {
-    const data = await getMatches();
-    setMatches(data);
+    try {
+      const data = await getMatches();
+      setMatches(data);
+    } catch (error) {
+      console.error("Failed to load matches:", error);
+    }
   };
 
   useEffect(() => {
-    let cancelled = false;
-    const init = async () => {
-      const data = await getMatches();
-      if (!cancelled) setMatches(data);
+    let mounted = true;
+    const fetchMatches = async () => {
+      try {
+        const data = await getMatches();
+        if (mounted) setMatches(data);
+      } catch (error) {
+        console.error("Failed to fetch matches:", error);
+      }
     };
-    void init();
+    fetchMatches();
     return () => {
-      cancelled = true;
+      mounted = false;
     };
   }, []);
 
   const create = async () => {
-    await createMatch(form);
-    reload();
-    loadMatches();
+    if (!form.teamA.trim() || !form.teamB.trim()) return;
+    try {
+      await createMatch({ home: form.teamA, away: form.teamB });
+      setForm({ teamA: "", teamB: "" }); // Reset form
+      await loadMatches();
+      reload();
+    } catch (error) {
+      console.error("Failed to create match:", error);
+      alert("Failed to create match. Please try again.");
+    }
   };
 
   const sendEvent = async () => {
-    await pushEvent(eventForm.id, eventForm.message, eventForm.type);
-    alert("Event pushed!");
+    // Validation for substitution events
+    if (
+      eventForm.type === "substitution" &&
+      (!eventForm.playerIn || !eventForm.playerOut)
+    ) {
+      alert(
+        "Please fill in both Player In and Player Out for substitution events"
+      );
+      return;
+    }
+
+    // Build the event object based on type
+    const eventData: Omit<MatchEvent, "_key"> = {
+      type: eventForm.type,
+      minute: eventForm.minute,
+      team: eventForm.team,
+    };
+
+    // Add player for relevant events
+    if (eventForm.type !== "substitution" && eventForm.player) {
+      eventData.player = eventForm.player;
+    }
+
+    // Add cardType for card events
+    if (eventForm.type === "card") {
+      eventData.cardType = eventForm.cardType;
+    }
+
+    // Add substitution-specific fields
+    if (eventForm.type === "substitution") {
+      eventData.playerIn = eventForm.playerIn;
+      eventData.playerOut = eventForm.playerOut;
+      // For substitution, use playerOut as the main player if player field is empty
+      if (!eventData.player) {
+        eventData.player = eventForm.playerOut;
+      }
+    }
+
+    try {
+      await pushEvent(eventForm.id, eventData);
+      setEventForm({
+        ...eventForm,
+        minute: 0,
+        player: "",
+        playerIn: "",
+        playerOut: "",
+      });
+      await loadMatches();
+      reload();
+    } catch (error) {
+      console.error("Failed to send event:", error);
+      alert(
+        "Failed to send event. Please check if the match exists and is started."
+      );
+    }
   };
 
   const handleStartMatch = async (matchId: number) => {
-    await startMatch(matchId);
-    reload();
-    loadMatches();
-    alert("Match started successfully!");
+    try {
+      await startMatch(matchId);
+      await loadMatches();
+      reload();
+    } catch (error) {
+      console.error("Failed to start match:", error);
+      alert("Failed to start match. Please try again.");
+    }
   };
 
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-3">
         <Settings className="h-8 w-8 text-slate-700" />
-        <h2 className="text-2xl font-bold text-slate-800">Admin Panel</h2>
+        <h2 className="text-2xl font-bold">Admin Panel</h2>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
+        {/* Create Match */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5" />
-              Create Match
-            </CardTitle>
-            <CardDescription>
-              Create a new soccer match for streaming
-            </CardDescription>
+            <CardTitle>Create Match</CardTitle>
+            <CardDescription>Create a new soccer match</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <Input
-                placeholder="Home Team"
-                value={form.home}
-                onChange={(e) => setForm({ ...form, home: e.target.value })}
-                className="w-full"
-              />
-              <Input
-                placeholder="Away Team"
-                value={form.away}
-                onChange={(e) => setForm({ ...form, away: e.target.value })}
-                className="w-full"
-              />
-            </div>
+            <Input
+              placeholder="Team A"
+              value={form.teamA}
+              onChange={(e) => setForm({ ...form, teamA: e.target.value })}
+            />
+            <Input
+              placeholder="Team B"
+              value={form.teamB}
+              onChange={(e) => setForm({ ...form, teamB: e.target.value })}
+            />
             <Button
               onClick={create}
-              className="w-full"
-              disabled={!form.home || !form.away}
+              disabled={!form.teamA.trim() || !form.teamB.trim()}
             >
               Create Match
             </Button>
           </CardContent>
         </Card>
 
+        {/* Send Event */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5" />
-              Send Match Event
-            </CardTitle>
-            <CardDescription>
-              Push real-time events to live matches
-            </CardDescription>
+            <CardTitle>Send Match Event</CardTitle>
+            <CardDescription>Push real-time events to a match</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <Input
-                placeholder="Match ID"
-                type="number"
-                value={eventForm.id}
-                onChange={(e) =>
-                  setEventForm({ ...eventForm, id: Number(e.target.value) })
-                }
-                className="w-full"
-              />
-              <Input
-                placeholder="Event Message"
-                value={eventForm.message}
-                onChange={(e) =>
-                  setEventForm({ ...eventForm, message: e.target.value })
-                }
-                className="w-full"
-              />
+            <Input
+              type="number"
+              placeholder="Match ID"
+              value={eventForm.id}
+              onChange={(e) =>
+                setEventForm({ ...eventForm, id: Number(e.target.value) })
+              }
+              min="1"
+            />
+
+            <Input
+              type="number"
+              placeholder="Minute"
+              value={eventForm.minute}
+              onChange={(e) =>
+                setEventForm({ ...eventForm, minute: Number(e.target.value) })
+              }
+              min="0"
+              max="120"
+            />
+
+            <Input
+              placeholder="Player (optional)"
+              value={eventForm.player}
+              onChange={(e) =>
+                setEventForm({ ...eventForm, player: e.target.value })
+              }
+            />
+
+            {/* Show substitution-specific fields */}
+            {eventForm.type === "substitution" && (
+              <>
+                <Input
+                  placeholder="Player Out"
+                  value={eventForm.playerOut}
+                  onChange={(e) =>
+                    setEventForm({ ...eventForm, playerOut: e.target.value })
+                  }
+                />
+                <Input
+                  placeholder="Player In"
+                  value={eventForm.playerIn}
+                  onChange={(e) =>
+                    setEventForm({ ...eventForm, playerIn: e.target.value })
+                  }
+                />
+              </>
+            )}
+
+            <Select
+              value={eventForm.team}
+              onValueChange={(t: "A" | "B") =>
+                setEventForm({ ...eventForm, team: t })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="A">Team A</SelectItem>
+                <SelectItem value="B">Team B</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={eventForm.type}
+              onValueChange={(t: "goal" | "foul" | "card" | "substitution") =>
+                setEventForm({ ...eventForm, type: t })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="goal">Goal</SelectItem>
+                <SelectItem value="foul">Foul</SelectItem>
+                <SelectItem value="card">Card</SelectItem>
+                <SelectItem value="substitution">Substitution</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {eventForm.type === "card" && (
               <Select
-                value={eventForm.type}
-                onValueChange={(value) =>
-                  setEventForm({ ...eventForm, type: value })
+                value={eventForm.cardType}
+                onValueChange={(value: "yellow" | "red") =>
+                  setEventForm({ ...eventForm, cardType: value })
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select event type" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="goal">Goal 🥅</SelectItem>
-                  <SelectItem value="foul">Foul ⚠️</SelectItem>
-                  <SelectItem value="yellow">Yellow Card 🟨</SelectItem>
-                  <SelectItem value="red">Red Card 🟥</SelectItem>
+                  <SelectItem value="yellow">Yellow Card</SelectItem>
+                  <SelectItem value="red">Red Card</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            )}
+
             <Button
               onClick={sendEvent}
-              className="w-full"
-              disabled={!eventForm.message}
+              disabled={
+                eventForm.type === "substitution" &&
+                (!eventForm.playerIn || !eventForm.playerOut)
+              }
             >
               Push Event
             </Button>
@@ -171,105 +293,42 @@ const AdminPage = ({ reload }: { reload: () => void }) => {
         </Card>
       </div>
 
+      {/* Match List */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Play className="h-5 w-5" />
-            Manage Matches
-          </CardTitle>
-          <CardDescription>
-            Start matches and manage live events
-          </CardDescription>
+          <CardTitle>Manage Matches</CardTitle>
+          <CardDescription>Start matches and view status</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {matches.length === 0 && (
-            <div className="text-center py-8 text-slate-500">
-              <p>No matches created yet.</p>
-            </div>
+        <CardContent>
+          {matches.length === 0 ? (
+            <p className="text-center text-slate-500 py-4">
+              No matches created yet
+            </p>
+          ) : (
+            matches.map((m) => (
+              <div
+                key={m.id}
+                className="flex justify-between items-center p-3 border-b"
+              >
+                <div>
+                  <strong>
+                    {m.teamA} vs {m.teamB}
+                  </strong>
+                  <div className="text-sm text-slate-600">
+                    ID: {m.id} • Events: {m.events?.length || 0}
+                  </div>
+                </div>
+
+                {!m.started ? (
+                  <Button onClick={() => handleStartMatch(m.id)}>
+                    <Play className="h-4 w-4 mr-2" /> Start
+                  </Button>
+                ) : (
+                  <span className="text-green-600 font-bold">LIVE 🔴</span>
+                )}
+              </div>
+            ))
           )}
-
-          {/* Live Matches */}
-          <div className="space-y-4">
-            <h4 className="text-lg font-semibold text-slate-700">
-              Live Matches
-            </h4>
-            {matches.filter((m) => m.isLive).length === 0 ? (
-              <div className="text-center py-4 text-slate-500">
-                <p>No live matches</p>
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {matches
-                  .filter((m) => m.isLive)
-                  .map((match) => (
-                    <Card
-                      key={match.id}
-                      className="border-2 border-green-500 bg-green-50"
-                    >
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-lg font-semibold text-center">
-                          {match.home} vs {match.away}
-                        </CardTitle>
-                        <CardDescription className="text-center flex items-center justify-center gap-2">
-                          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                          LIVE
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="text-center">
-                        <div className="text-2xl font-bold text-green-600 mb-2">
-                          {match.score}
-                        </div>
-                        <p className="text-sm text-slate-600">
-                          Time: {match.time}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </div>
-            )}
-          </div>
-
-          {/* Upcoming Matches */}
-          <div className="space-y-4">
-            <h4 className="text-lg font-semibold text-slate-700">
-              Upcoming Matches
-            </h4>
-            {matches.filter((m) => !m.isLive).length === 0 ? (
-              <div className="text-center py-4 text-slate-500">
-                <p>No upcoming matches</p>
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {matches
-                  .filter((m) => !m.isLive)
-                  .map((match) => (
-                    <Card key={match.id} className="bg-slate-50">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-lg font-semibold text-center">
-                          {match.home} vs {match.away}
-                        </CardTitle>
-                        <CardDescription className="text-center flex items-center justify-center gap-2">
-                          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                          UPCOMING
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="text-center space-y-3">
-                        <div className="text-2xl font-bold text-blue-600">
-                          0-0
-                        </div>
-                        <Button
-                          onClick={() => handleStartMatch(match.id)}
-                          className="w-full flex items-center gap-2"
-                        >
-                          <Play className="h-4 w-4" />
-                          Start Match
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </div>
-            )}
-          </div>
         </CardContent>
       </Card>
     </div>

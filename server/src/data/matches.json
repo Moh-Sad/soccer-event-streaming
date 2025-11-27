@@ -19,7 +19,7 @@
     "id": "2",
     "teamA": "Barcelona",
     "teamB": "Real Madrid",
-    "started": false,
+    "started": true,
     "scoreA": 0,
     "scoreB": 0,
     "events": []
@@ -28,7 +28,7 @@
     "id": "3",
     "teamA": "Barcelona",
     "teamB": "Real Madrid",
-    "started": false,
+    "started": true,
     "scoreA": 0,
     "scoreB": 0,
     "events": []
@@ -37,7 +37,14 @@
     "id": "4",
     "teamA": "Barcelona",
     "teamB": "Real Madrid",
-    "started": false,
+    "started": true,
+    "scoreA": 0,
+    "scoreB": 0,
+    "events": []
+  },
+  {
+    "id": "5",
+    "started": true,
     "scoreA": 0,
     "scoreB": 0,
     "events": []

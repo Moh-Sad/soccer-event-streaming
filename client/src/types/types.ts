@@ -1,15 +1,26 @@
-export interface Match {
-  id: number;
-  home: string;
-  away: string;
-  score: string;
-  time: string;
-  isLive: boolean;
+// types/types.ts
+export interface MatchEvent {
+  _key?: string;
+  type: "goal" | "foul" | "card" | "substitution";
+  minute: number;
+  team: "A" | "B";
+  player?: string;
+  cardType?: "yellow" | "red";
+  playerIn?: string;
+  playerOut?: string;
+  timestamp?: string;
+  message?: string;
 }
 
-export interface MatchEvent {
+export interface Match {
   id: number;
-  type: string;
-  message: string;
-  timestamp: string;
+  teamA: string;
+  teamB: string;
+  started: boolean;
+  events: MatchEvent[];
+  isLive?: boolean;
+  home?: string;
+  away?: string;
+  time?: string;
+  score?: string;
 }

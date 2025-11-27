@@ -1,3 +1,4 @@
+// components/MatchesList.tsx
 import React from "react";
 import { Match } from "@/types/types";
 import { Button } from "@/components/ui/button";
@@ -17,9 +18,45 @@ interface Props {
 }
 
 const MatchesList: React.FC<Props> = ({ matches, onOpen, reload }) => {
+  // Calculate derived properties for matches
+  const processedMatches = matches.map((match) => {
+    // Calculate score
+    const goalsA =
+      match.events?.filter(
+        (event) => event.type === "goal" && event.team === "A"
+      ).length || 0;
+    const goalsB =
+      match.events?.filter(
+        (event) => event.type === "goal" && event.team === "B"
+      ).length || 0;
+    const score = `${goalsA}-${goalsB}`;
+
+    // Calculate current minute
+    let time = "Not Started";
+    if (match.started) {
+      if (match.events && match.events.length > 0) {
+        const latestMinute = Math.max(
+          ...match.events.map((event) => event.minute)
+        );
+        time = `${Math.min(latestMinute + 1, 90)}'`;
+      } else {
+        time = "1'";
+      }
+    }
+
+    return {
+      ...match,
+      home: match.teamA,
+      away: match.teamB,
+      isLive: match.started,
+      score,
+      time,
+    };
+  });
+
   // Separate live and upcoming matches
-  const liveMatches = matches.filter((match) => match.isLive);
-  const upcomingMatches = matches.filter((match) => !match.isLive);
+  const liveMatches = processedMatches.filter((match) => match.isLive);
+  const upcomingMatches = processedMatches.filter((match) => !match.isLive);
 
   return (
     <div className="space-y-6">
@@ -27,8 +64,8 @@ const MatchesList: React.FC<Props> = ({ matches, onOpen, reload }) => {
         <h2 className="text-2xl font-bold text-slate-800">Available Matches</h2>
         <Button
           onClick={reload}
-          variant="none"
-          className="flex items-center gap-2 border bg-white"
+          variant="outline"
+          className="flex items-center gap-2"
         >
           <RefreshCw className="h-4 w-4" />
           Refresh
@@ -111,14 +148,17 @@ const MatchesList: React.FC<Props> = ({ matches, onOpen, reload }) => {
                 <CardContent className="space-y-4">
                   <div className="text-center">
                     <span className="text-2xl font-bold text-blue-600">
-                      0-0
+                      {match.score}
                     </span>
                   </div>
-                  <div className="text-center py-2">
-                    <span className="text-sm text-slate-500 bg-slate-200 px-3 py-1 rounded-full">
-                      Not Started
-                    </span>
-                  </div>
+                  <Button
+                    onClick={() => onOpen(match)}
+                    className="w-full flex items-center gap-2"
+                    variant="outline"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View Match
+                  </Button>
                 </CardContent>
               </Card>
             ))}

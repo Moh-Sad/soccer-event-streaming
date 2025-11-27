@@ -1,44 +1,44 @@
+// App.tsx
 import { useState, useEffect, startTransition } from "react";
 import { Match } from "@/types/types";
-import { getMatches } from "./api/api";
+import { getMatches } from "@/api/api";
 import MatchesList from "./components/MatchesList";
 import MatchDetail from "./components/MatchDetail";
 import AdminPage from "./components/Admin";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const App = () => {
-  const [activeTab, setActiveTab] = useState<"user" | "admin" | "detail">("user");
+  const [activeTab, setActiveTab] = useState<"user" | "admin" | "detail">(
+    "user"
+  );
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
   const load = async () => {
-    const data = await getMatches();
-    startTransition(() => {
-      setMatches(data);
-    });
+    try {
+      const data = await getMatches();
+      startTransition(() => {
+        setMatches(data);
+        // Update selected match if it exists to keep data in sync
+        if (selectedMatch) {
+          const updatedMatch = data.find((m) => m.id === selectedMatch.id);
+          if (updatedMatch) {
+            setSelectedMatch(updatedMatch);
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Failed to load matches:", error);
+    }
   };
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const data = await getMatches();
-      if (!mounted) return;
-      startTransition(() => {
-        setMatches(data);
-      });
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    load();
+  });
 
   const openMatch = (match: Match) => {
     setSelectedMatch(match);
     setActiveTab("detail");
-  };
-
-  const handleTabChange = (value: string) => {
-    setActiveTab(value as "user" | "admin" | "detail");
   };
 
   return (
@@ -49,23 +49,22 @@ const App = () => {
             <span className="text-5xl">⚽</span>
             Soccer Event Streaming
           </h1>
-          <p className="text-slate-600">Live match updates and administration</p>
+          <p className="text-slate-600">
+            Live match updates and administration
+          </p>
         </header>
 
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v: string) =>
+            setActiveTab(v as "user" | "admin" | "detail")
+          }
+        >
           <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 mb-8">
-            <TabsTrigger value="user" className="flex items-center gap-2">
-              <span>👤</span> User View
-            </TabsTrigger>
-            <TabsTrigger value="admin" className="flex items-center gap-2">
-              <span>⚙️</span> Admin
-            </TabsTrigger>
-            <TabsTrigger 
-              value="detail" 
-              className="flex items-center gap-2"
-              disabled={!selectedMatch}
-            >
-              <span>🔴</span> Live Match
+            <TabsTrigger value="user">User View</TabsTrigger>
+            <TabsTrigger value="admin">Admin</TabsTrigger>
+            <TabsTrigger value="detail" disabled={!selectedMatch}>
+              Live Match
             </TabsTrigger>
           </TabsList>
 
@@ -74,7 +73,9 @@ const App = () => {
           </TabsContent>
 
           <TabsContent value="detail">
-            {selectedMatch && <MatchDetail match={selectedMatch} />}
+            {selectedMatch && (
+              <MatchDetail match={selectedMatch} reload={load} />
+            )}
           </TabsContent>
 
           <TabsContent value="admin">

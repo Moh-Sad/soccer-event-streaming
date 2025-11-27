@@ -1,66 +1,74 @@
-// api.ts
-
+// api/api.ts
 import { Match, MatchEvent } from "@/types/types";
 
-const API_URL = "http://localhost:8000";
+const API_URL = "http://localhost:8000/api";
 
 // Fetch all matches
 export const getMatches = async (): Promise<Match[]> => {
   const res = await fetch(`${API_URL}/matches`);
+  if (!res.ok) throw new Error("Failed to fetch matches");
   return res.json();
 };
 
-// Create a match
+// Create match
 export const createMatch = async (match: {
   home: string;
   away: string;
-  score: string;
-  time: string;
 }): Promise<Match> => {
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  const newMatch: Match = {
-    id: Math.random(),
-    home: match.home,
-    away: match.away,
-    score: "0-0", 
-    time: "00:00",
-    isLive: false, 
-  };
-
-  return newMatch;
-};
-
-// Subscribe to live events (SSE)
-export const subscribeToMatch = (
-  matchId: number,
-  onEvent: (data: MatchEvent) => void
-) => {
-  const eventSource = new EventSource(`${API_URL}/matches/${matchId}/stream`);
-
-  eventSource.onmessage = (e) => {
-    const data: MatchEvent = JSON.parse(e.data);
-    onEvent(data);
-  };
-
-  return eventSource;
-};
-
-// Admin: push event
-export const pushEvent = async (
-  matchId: number,
-  message: string,
-  type: string
-) => {
-  await fetch(`${API_URL}/admin/matches/${matchId}/events`, {
+  const res = await fetch(`${API_URL}/admin/matches`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, type }),
+    body: JSON.stringify(match),
   });
+
+  if (!res.ok) throw new Error("Failed to create match");
+  return res.json();
 };
 
-// Add this function to your api.ts
-export const startMatch = async (matchId: number): Promise<void> => {
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  console.log(`Starting match ${matchId}`);
+// SSE subscription
+export const subscribeToMatch = (
+  matchId: number,
+  onEvent: (event: MatchEvent) => void
+) => {
+  const es = new EventSource(`${API_URL}/matches/${matchId}/stream`);
+
+  es.onmessage = (e) => {
+    try {
+      const data: MatchEvent = JSON.parse(e.data);
+      onEvent(data);
+    } catch (error) {
+      console.error("Failed to parse SSE data:", error);
+    }
+  };
+
+  es.onerror = (error) => {
+    console.error("SSE connection error:", error);
+  };
+
+  return es;
+};
+
+// Push match event
+export const pushEvent = async (
+  matchId: number,
+  eventData: Omit<MatchEvent, "_key">
+) => {
+  const res = await fetch(`${API_URL}/admin/matches/${matchId}/event`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(eventData),
+  });
+
+  if (!res.ok) throw new Error("Failed to push event");
+  return res.json();
+};
+
+// Start a match
+export const startMatch = async (matchId: number) => {
+  const res = await fetch(`${API_URL}/admin/matches/${matchId}/start`, {
+    method: "POST",
+  });
+
+  if (!res.ok) throw new Error("Failed to start match");
+  return res.json();
 };
